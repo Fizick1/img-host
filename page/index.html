@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <title>Quizz — Безопасность аккаунта</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body {
+          background: #0b1020;
+          color: #fff;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+          margin: 0;
+        }
+        .card {
+          background: #151a30;
+          padding: 24px;
+          border-radius: 16px;
+          width: 100%;
+          max-width: 420px;
+          box-shadow: 0 10px 30px rgba(0,0,0,.4);
+        }
+        h1 {
+          margin-top: 0;
+          font-size: 22px;
+        }
+        p {
+          opacity: 0.85;
+          line-height: 1.4;
+        }
+        input {
+          width: 100%;
+          padding: 12px;
+          border-radius: 10px;
+          border: none;
+          margin-top: 12px;
+          font-size: 16px;
+        }
+        button {
+          width: 100%;
+          margin-top: 16px;
+          padding: 12px;
+          border-radius: 10px;
+          border: none;
+          font-size: 16px;
+          background: #5b7cff;
+          color: white;
+          cursor: pointer;
+        }
+        button:disabled {
+          opacity: 0.5;
+          cursor: default;
+        }
+        .success {
+          color: #7CFF9E;
+        }
+        .error {
+          color: #FF7C7C;
+        }
+        .footer {
+          margin-top: 16px;
+          font-size: 13px;
+          opacity: 0.6;
+          text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card" id="app">
+    <h1>Загрузка…</h1>
+    <p>Пожалуйста, подождите</p>
+</div>
+
+<script>
+    const app = document.getElementById("app");
+
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = hash.get("access_token");
+    const type = hash.get("type");
+
+    if (!accessToken || !type) {
+      app.innerHTML = `
+        <h1 class="error">Ошибка</h1>
+        <p>Ссылка недействительна или устарела.</p>
+      `;
+      throw new Error("No token");
+    }
+
+    if (type === "signup") {
+      app.innerHTML = `
+        <h1 class="success">Почта подтверждена 🎉</h1>
+        <p>Ваш аккаунт успешно активирован.</p>
+        <p>Теперь вы можете вернуться в приложение Quizz и войти в игру.</p>
+        <div class="footer">Можно закрыть эту страницу</div>
+      `;
+    }
+
+    if (type === "recovery") {
+      app.innerHTML = `
+        <h1>Смена пароля</h1>
+        <p>Введите новый пароль для вашего аккаунта</p>
+        <input type="password" id="password" placeholder="Новый пароль" />
+        <button id="save">Сохранить пароль</button>
+        <p id="msg"></p>
+      `;
+
+      document.getElementById("save").onclick = async () => {
+        const password = document.getElementById("password").value;
+        const msg = document.getElementById("msg");
+
+        if (password.length < 6) {
+          msg.textContent = "Пароль должен быть не менее 6 символов";
+          msg.className = "error";
+          return;
+        }
+
+        msg.textContent = "Сохранение…";
+        msg.className = "";
+
+        const res = await fetch(
+          "https://ijhppwmsduucmepioyrw.supabase.co/auth/v1/user",
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + accessToken
+            },
+            body: JSON.stringify({ password })
+          }
+        );
+
+        if (res.ok) {
+          msg.textContent = "Пароль успешно изменён ✅";
+          msg.className = "success";
+        } else {
+          msg.textContent = "Ошибка при сохранении пароля";
+          msg.className = "error";
+        }
+      };
+    }
+</script>
+
+</body>
+</html>
