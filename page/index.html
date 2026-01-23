@@ -2,76 +2,98 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quizz Auth</title>
     <style>
-        body { font-family: sans-serif; background: #1a1a2e; color: #fff; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; }
-        .container { background:#162447; padding:2rem; border-radius:12px; width:90%; max-width:400px; text-align:center; box-shadow:0 0 20px rgba(0,0,0,0.5);}
-        h1 { color:#e43f5a; margin-bottom:1rem; }
-        p { margin-bottom:1rem; }
-        button { padding:0.6rem 1.2rem; border:none; border-radius:6px; background:#e43f5a; color:#fff; font-weight:bold; cursor:pointer; }
-        button:disabled { background:#555; cursor:not-allowed; }
-        .message { margin-top:1rem; font-size:0.9rem; }
+        body { font-family: Arial, sans-serif; background: #0f0f1a; color: #f0f0f0; display:flex; justify-content:center; align-items:center; height:100vh; }
+        .container { background:#1a1a2e; padding:30px; border-radius:12px; width:350px; text-align:center; box-shadow:0 0 20px rgba(0,0,0,0.5);}
+        input { width:90%; padding:10px; margin:10px 0; border-radius:6px; border:none; }
+        button { padding:10px 20px; border:none; border-radius:6px; background:#4e9af1; color:#fff; cursor:pointer; }
+        button:hover { background:#357ae8; }
+        .message { margin-top:15px; color:#ff7675; }
+        h1 { margin-bottom:20px; font-size:1.5em; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="container">
-    <h1>Quizz Auth</h1>
-    <p id="status">Processing...</p>
-    <button id="continue" style="display:none;">Continue</button>
+    <h1 id="title">Quizz Auth</h1>
+    <div id="content"></div>
     <div class="message" id="message"></div>
 </div>
 
-<script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
+<script>
+    // =========================
+    // Настройка Supabase
+    // =========================
     const SUPABASE_URL = 'https://ijhppwmsduucmepioyrw.supabase.co/';
     const SUPABASE_ANON_KEY = 'sb_publishable_nowYXjXnaIWZ5hMoZtXaEA_0vFX_aYy'; // Public anon key
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const statusEl = document.getElementById('status');
-    const messageEl = document.getElementById('message');
-    const continueBtn = document.getElementById('continue');
+    const contentDiv = document.getElementById('content');
+    const messageDiv = document.getElementById('message');
+    const title = document.getElementById('title');
 
-    const hash = window.location.hash.substring(1); // everything after #
-    const params = new URLSearchParams(hash);
+    // =========================
+    // Получаем токен из URL
+    // =========================
+    const urlHash = window.location.hash; // "#access_token=..."
+    const params = new URLSearchParams(urlHash.replace('#','?'));
     const accessToken = params.get('access_token');
     const type = params.get('type'); // "recovery" или "signup"
 
-    async function handleToken() {
-        if (!accessToken) {
-            statusEl.textContent = 'No token found.';
-            messageEl.textContent = 'Open the link from your email to confirm your email or reset your password.';
-            return;
-        }
+    // =========================
+    // Восстановление пароля
+    // =========================
+    if (type === 'recovery' && accessToken) {
+        title.innerText = "Восстановление пароля";
+        contentDiv.innerHTML = `
+        <input type="password" id="newPassword" placeholder="Новый пароль" />
+        <button id="savePassword">Сохранить пароль</button>
+      `;
 
-        try {
-            if (type === 'recovery') {
-                statusEl.textContent = 'Resetting your password...';
-                const { data, error } = await supabase.auth.updateUser({ access_token: accessToken });
-                if (error) throw error;
-                statusEl.textContent = 'Password reset successful!';
-                messageEl.textContent = 'You can now login with your new password.';
-            } else if (type === 'signup') {
-                statusEl.textContent = 'Confirming your email...';
-                const { data, error } = await supabase.auth.getUser(accessToken);
-                if (error) throw error;
-                statusEl.textContent = 'Email confirmed!';
-                messageEl.textContent = 'You can now login to your Quizz account.';
+        document.getElementById('savePassword').addEventListener('click', async () => {
+            const newPassword = document.getElementById('newPassword').value;
+            if (!newPassword) { messageDiv.innerText = "Введите новый пароль"; return; }
+
+            const { data, error } = await supabase.auth.updateUser(
+                { password: newPassword },
+                { accessToken }
+            );
+
+            if (error) {
+                messageDiv.innerText = "Ошибка обновления пароля: " + error.message;
             } else {
-                statusEl.textContent = 'Token detected.';
-                messageEl.textContent = 'Processing...';
+                messageDiv.style.color = "#4ef1a3";
+                messageDiv.innerText = "Пароль успешно изменён! Можно закрыть страницу.";
+                contentDiv.innerHTML = "";
             }
-            continueBtn.style.display = 'inline-block';
-            continueBtn.onclick = () => { window.close(); };
-        } catch (err) {
-            console.error(err);
-            statusEl.textContent = 'Error!';
-            messageEl.textContent = err.message || 'Something went wrong.';
-        }
-    }
+        });
 
-    handleToken();
+        // =========================
+        // Подтверждение почты
+        // =========================
+    } else if (type === 'signup' && accessToken) {
+        title.innerText = "Подтверждение почты";
+        contentDiv.innerHTML = `<p>Подтверждаем вашу почту...</p>`;
+
+        (async () => {
+            const { data, error } = await supabase.auth.getUser(accessToken);
+            if (error) {
+                messageDiv.innerText = "Ошибка подтверждения: " + error.message;
+            } else {
+                messageDiv.style.color = "#4ef1a3";
+                messageDiv.innerText = "Почта подтверждена! Теперь можно войти в приложение.";
+                contentDiv.innerHTML = "";
+            }
+        })();
+
+        // =========================
+        // Универсальная страница
+        // =========================
+    } else {
+        title.innerText = "Quizz";
+        contentDiv.innerHTML = `<p>Откройте ссылку из письма для подтверждения или восстановления пароля</p>`;
+    }
 </script>
 </body>
 </html>
